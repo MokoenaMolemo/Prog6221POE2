@@ -27,7 +27,7 @@ namespace CybersecurityChatbotWPF
             _chatbot = new ChatbotController();
             _audioPlayer = new AudioPlayer();
 
-            // Clear input box and set focus
+            // Clear input box 
             if (MessageTextBox != null)
             {
                 MessageTextBox.Text = "";
@@ -37,7 +37,7 @@ namespace CybersecurityChatbotWPF
             
             DisplayWelcomeMessage();
 
-            // Play voice greeting
+            // Plays voice greeting
             PlayVoiceGreeting();
         }
 
@@ -60,7 +60,7 @@ namespace CybersecurityChatbotWPF
         private void DisplayWelcomeMessage()
         {
             string welcome = "Hello! Welcome to the Cybersecurity Awareness Bot!\n\n" +
-                            "I'm here to help you stay safe online. You can ask me about:\n" +
+                            "I'm here to help you stay safe online. You can ask me about the following:\n" +
                             "• Password safety\n" +
                             "• Phishing scams\n" +
                             "• Privacy protection\n" +
