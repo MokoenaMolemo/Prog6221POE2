@@ -91,7 +91,7 @@
             {
                 $"You're very welcome! Since you found that helpful, would you like to learn more about {topic}?",
                 $"Happy to help!Anything else about {topic} you'd like to explore?",
-                $"Thank you for your kind words! 🙏 Shall we dive deeper into {topic} or switch to another topic?"
+                $"Thank you for your kind words! Shall we dive deeper into {topic} or switch to another topic?"
             };
             return responses[_random.Next(responses.Count)];
         }
