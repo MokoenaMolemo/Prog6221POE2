@@ -54,7 +54,7 @@ namespace CybersecurityChatbotWPF.Controllers
                 return $"{followUpResponse}\n\n{_responseManager.GetFollowUpResponse(_context.CurrentTopic)}";
             }
 
-            // Handle recognized topic
+            // recorgnises the topic
             if (!string.IsNullOrEmpty(topic))
             {
                 _context.SetTopic(topic);
@@ -74,7 +74,7 @@ namespace CybersecurityChatbotWPF.Controllers
                 return finalResponse;
             }
 
-            // Handle special commands
+            // Handles any special commands
             if (IsGreeting(userInput))
                 return GetGreetingResponse();
 
@@ -205,12 +205,12 @@ What would you like to learn about today?";
         private string GetSessionSummary()
         {
             UserProfile profile = _memoryManager.GetUserProfile();
-            return $@"📊 **Session Summary**
+            return $@"**Session Summary**
 
  User: {(string.IsNullOrEmpty(profile.Name) ? "Guest" : profile.Name)}
  Duration: {profile.GetSessionDuration()}
  Topics Discussed: {(profile.DiscussedTopics.Count > 0 ? string.Join(", ", profile.DiscussedTopics) : "None yet")}
-{(string.IsNullOrEmpty(profile.FavoriteTopic) ? "" : $"⭐ Favorite Topic: {profile.FavoriteTopic}")}*-+-
+{(string.IsNullOrEmpty(profile.FavoriteTopic) ? "" : $" Favorite Topic: {profile.FavoriteTopic}")}*-+-
 
  You're building valuable cybersecurity knowledge! Keep learning and stay safe!";
         }
