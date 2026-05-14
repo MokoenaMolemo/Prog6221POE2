@@ -1,0 +1,208 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ master, main ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:  
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  BUILD_CONFIGURATION: 'Release'
+  PROJECT_NAME: 'CybersecurityChatbotWPF'
+
+jobs:
+  build:
+    runs-on: windows-latest 
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup .NET ${{ env.DOTNET_VERSION }}
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Display .NET version
+      run: dotnet --version
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Build project
+      run: dotnet build --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+    
+    - name: Run tests (if any)
+      run: dotnet test --configuration ${{ env.BUILD_CONFIGURATION }} --no-build --verbosity normal
+      continue-on-error: true 
+    
+    - name: Publish application
+      run: dotnet publish --configuration ${{ env.BUILD_CONFIGURATION }} --output ./publish --runtime win-x64 --self-contained false -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+    
+    - name: Create welcome.wav placeholder (if missing)
+      run: |
+        if (!(Test-Path "./publish/welcome.wav") -and !(Test-Path "./welcome.wav")) {
+          Write-Host "Creating placeholder audio file"
+          # Create a minimal valid WAV file
+          $wavBytes = @(
+            0x52,0x49,0x46,0x46,0x24,0x00,0x00,0x00,0x57,0x41,0x56,0x45,
+            0x66,0x6D,0x74,0x20,0x10,0x00,0x00,0x00,0x01,0x00,0x01,0x00,
+            0x44,0xAC,0x00,0x00,0x44,0xAC,0x00,0x00,0x01,0x00,0x08,0x00,
+            0x64,0x61,0x74,0x61,0x00,0x00,0x00,0x00
+          )
+          [System.IO.File]::WriteAllBytes("./publish/welcome.wav", $wavBytes)
+        }
+    
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.PROJECT_NAME }}-Build-${{ github.sha }}
+        path: ./publish
+        retention-days: 7
+
+  autotag:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      should_tag: ${{ steps.tag.outputs.should_tag }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Determine next tag
+      id: tag
+      shell: bash
+      run: |
+        git fetch --tags --force
+        
+        # Check if HEAD already has a tag
+        EXISTING_TAG=$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+        if [ -n "$EXISTING_TAG" ]; then
+          echo "should_tag=false" >> $GITHUB_OUTPUT
+          echo "tag=$EXISTING_TAG" >> $GITHUB_OUTPUT
+          echo "HEAD already has tag: $EXISTING_TAG"
+          exit 0
+        fi
+        
+        # Get the latest tag
+        LATEST_TAG=$(git tag -l "v*" --sort=-v:refname | head -1)
+        if [ -z "$LATEST_TAG" ]; then
+          LATEST_TAG="v0.0.0"
+        fi
+        
+        echo "Latest tag: $LATEST_TAG"
+        
+        # Parse version and increment patch
+        if [[ $LATEST_TAG =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+          MAJOR=${BASH_REMATCH[1]}
+          MINOR=${BASH_REMATCH[2]}
+          PATCH=${BASH_REMATCH[3]}
+          NEW_PATCH=$((PATCH + 1))
+          NEXT_TAG="v$MAJOR.$MINOR.$NEW_PATCH"
+        else
+          NEXT_TAG="v1.0.0"
+        fi
+        
+        echo "should_tag=true" >> $GITHUB_OUTPUT
+        echo "tag=$NEXT_TAG" >> $GITHUB_OUTPUT
+        echo "Will create tag: $NEXT_TAG"
+
+    - name: Create tag
+      if: steps.tag.outputs.should_tag == 'true'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const tagName = '${{ steps.tag.outputs.tag }}';
+          console.log(`Creating tag: ${tagName}`);
+          await github.rest.git.createRef({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            ref: `refs/tags/${tagName}`,
+            sha: context.sha
+          });
+
+  release:
+    needs: [build, autotag]
+    runs-on: windows-latest
+    if: always() && needs.build.result == 'success' && (startsWith(github.ref, 'refs/tags/v') || needs.autotag.outputs.should_tag == 'true')
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Build
+      run: dotnet build --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+    
+    - name: Publish as single executable
+      run: |
+        dotnet publish --configuration ${{ env.BUILD_CONFIGURATION }} `
+          --output ./release `
+          --runtime win-x64 `
+          --self-contained false `
+          -p:PublishSingleFile=true `
+          -p:IncludeNativeLibrariesForSelfExtract=true `
+          -p:DebugType=embedded
+    
+    - name: Copy welcome.wav if exists
+      run: |
+        if (Test-Path "./welcome.wav") {
+          Copy-Item "./welcome.wav" "./release/welcome.wav"
+          Write-Host "Copied welcome.wav to release folder"
+        }
+    
+    - name: Resolve release tag
+      id: releasetag
+      shell: bash
+      run: |
+        if [[ "${{ startsWith(github.ref, 'refs/tags/v') }}" == "true" ]]; then
+          TAG="${{ github.ref_name }}"
+        else
+          TAG="${{ needs.autotag.outputs.tag }}"
+        fi
+        
+        if [ -z "$TAG" ]; then
+          echo "Could not determine release tag"
+          exit 1
+        fi
+        
+        echo "tag=$TAG" >> $GITHUB_OUTPUT
+        echo "Release tag: $TAG"
+    
+    - name: Create ZIP Archive
+      run: |
+        Compress-Archive -Path ./release/* -DestinationPath ${{ env.PROJECT_NAME }}-${{ steps.releasetag.outputs.tag }}.zip -Force
+        Write-Host "Created archive: ${{ env.PROJECT_NAME }}-${{ steps.releasetag.outputs.tag }}.zip"
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.releasetag.outputs.tag }}
+        name: Cybersecurity Chatbot ${{ steps.releasetag.outputs.tag }}
+        files: ${{ env.PROJECT_NAME }}-${{ steps.releasetag.outputs.tag }}.zip
+        generate_release_notes: true
+        draft: false
+        prerelease: false
+
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
