@@ -112,7 +112,7 @@
             List<string> followUps = new List<string>
             {
                 $"Would you like to learn more about {topic}? I can share advanced tips!",
-                $"That's just the basics of {topic}. Want me to explain more deeply?",
+                $"That's just the basics of {topic}.",
                 $"There's much more to know about {topic}. Shall I continue?",
                 $"I have more {topic} tips if you're interested in learning further!"
             };
