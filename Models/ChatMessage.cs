@@ -9,7 +9,7 @@ namespace CybersecurityChatbotWPF.Models
         public bool IsUser { get; set; }
         public DateTime Timestamp { get; set; }
 
-        public string SenderName => IsUser ? "You" : "Bot";
+        public string SenderName => IsUser ? "User" : "ChatBot";
         public string AvatarIcon => IsUser ? "👤" : "🤖";
 
         
