@@ -54,7 +54,7 @@ namespace CybersecurityChatbotWPF.Controllers
 
             if (!string.IsNullOrEmpty(_userProfile.FavoriteTopic))
             {
-                baseResponse += $"\n\n💡 Since you're interested in {_userProfile.FavoriteTopic}, would you like more specific tips on this topic?";
+                baseResponse += $"\n\n Since you're interested in {_userProfile.FavoriteTopic}, would you like more specific tips on this topic?";
             }
 
             return baseResponse;
